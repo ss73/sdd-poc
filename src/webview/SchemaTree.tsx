@@ -93,6 +93,7 @@ export function SchemaTree({ tables, onPreviewData }: SchemaTreeProps) {
             filter={filter}
             onToggle={toggle}
             onContextMenu={handleContextMenu}
+            onPreviewData={handlePreviewData}
           />
         ))}
         {filteredTables.length === 0 && filter && (
@@ -131,6 +132,7 @@ interface TableNodeProps {
   filter: string;
   onToggle: (key: string) => void;
   onContextMenu: (e: React.MouseEvent, tableName: string) => void;
+  onPreviewData: (tableName: string) => void;
 }
 
 function TableNode({
@@ -139,6 +141,7 @@ function TableNode({
   filter,
   onToggle,
   onContextMenu,
+  onPreviewData,
 }: TableNodeProps) {
   const tableKey = `table:${table.name}`;
   const isExpanded = expanded[tableKey] ?? false;
@@ -162,6 +165,13 @@ function TableNode({
         <span className="chevron">{isExpanded ? '\u25BE' : '\u25B8'}</span>
         <span className="icon table-icon">T</span>
         <span className="label">{table.name}</span>
+        <button
+          className="preview-btn"
+          title="Preview Data"
+          onClick={(e) => { e.stopPropagation(); onPreviewData(table.name); }}
+        >
+          Preview
+        </button>
         <span className="badge">{table.columns.length} cols</span>
       </div>
 

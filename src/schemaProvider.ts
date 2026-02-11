@@ -184,6 +184,9 @@ export class SchemaProvider implements vscode.CustomReadonlyEditorProvider {
     const scriptUri = webview.asWebviewUri(
       vscode.Uri.joinPath(this.extensionUri, 'dist', 'webview', 'index.js')
     );
+    const cssUri = webview.asWebviewUri(
+      vscode.Uri.joinPath(this.extensionUri, 'dist', 'webview', 'index.css')
+    );
 
     const nonce = getNonce();
 
@@ -194,6 +197,7 @@ export class SchemaProvider implements vscode.CustomReadonlyEditorProvider {
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}'; font-src ${webview.cspSource};">
   <title>SQL Database Visualizer</title>
+  <link rel="stylesheet" href="${cssUri}">
   <style>
     * { box-sizing: border-box; }
     body {
@@ -262,6 +266,9 @@ export class SchemaProvider implements vscode.CustomReadonlyEditorProvider {
     .badge { margin-left: auto; color: var(--vscode-descriptionForeground); font-size: 11px; flex-shrink: 0; }
     .index-columns { color: var(--vscode-descriptionForeground); font-size: 11px; margin-left: 4px; }
     .highlighted { background: var(--vscode-editor-findMatchHighlightBackground, rgba(234, 179, 8, 0.3)); }
+    .preview-btn { background: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground); border: none; padding: 1px 6px; border-radius: 2px; cursor: pointer; font-size: 10px; margin-left: auto; opacity: 0; transition: opacity 0.1s; }
+    .table-row:hover .preview-btn { opacity: 1; }
+    .preview-btn:hover { background: var(--vscode-button-secondaryHoverBackground); }
 
     /* Context Menu */
     .context-menu { position: fixed; z-index: 1000; background: var(--vscode-menu-background); border: 1px solid var(--vscode-menu-border); border-radius: 4px; padding: 4px 0; box-shadow: 0 2px 8px rgba(0,0,0,0.3); min-width: 140px; }
