@@ -1,0 +1,14 @@
+.claude/
+.specify/
+.git/
+.gitignore
+src/
+specs/
+tests/
+node_modules/
+esbuild.mjs
+tsconfig.json
+tsconfig.webview.json
+CLAUDE.md
+**/*.ts
+dist/**/*.map
