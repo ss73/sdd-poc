@@ -4,13 +4,14 @@ import type { TableInfo, Column, Index, ForeignKey } from '../types';
 interface SchemaTreeProps {
   tables: TableInfo[];
   onPreviewData: (tableName: string) => void;
+  selectedTable: string | null;
 }
 
 interface ExpandedState {
   [key: string]: boolean;
 }
 
-export function SchemaTree({ tables, onPreviewData }: SchemaTreeProps) {
+export function SchemaTree({ tables, onPreviewData, selectedTable }: SchemaTreeProps) {
   const [filter, setFilter] = useState('');
   const [expanded, setExpanded] = useState<ExpandedState>({});
   const [contextMenu, setContextMenu] = useState<{
@@ -50,14 +51,6 @@ export function SchemaTree({ tables, onPreviewData }: SchemaTreeProps) {
     setContextMenu(null);
   }, []);
 
-  const handlePreviewData = useCallback(
-    (tableName: string) => {
-      setContextMenu(null);
-      onPreviewData(tableName);
-    },
-    [onPreviewData]
-  );
-
   const handleCopyName = useCallback((name: string) => {
     navigator.clipboard.writeText(name);
     setContextMenu(null);
@@ -93,7 +86,8 @@ export function SchemaTree({ tables, onPreviewData }: SchemaTreeProps) {
             filter={filter}
             onToggle={toggle}
             onContextMenu={handleContextMenu}
-            onPreviewData={handlePreviewData}
+            onPreviewData={onPreviewData}
+            isSelected={table.name === selectedTable}
           />
         ))}
         {filteredTables.length === 0 && filter && (
@@ -106,12 +100,6 @@ export function SchemaTree({ tables, onPreviewData }: SchemaTreeProps) {
           className="context-menu"
           style={{ left: contextMenu.x, top: contextMenu.y }}
         >
-          <div
-            className="context-menu-item"
-            onClick={() => handlePreviewData(contextMenu.tableName)}
-          >
-            Preview Data
-          </div>
           <div
             className="context-menu-item"
             onClick={() => handleCopyName(contextMenu.tableName)}
@@ -133,6 +121,7 @@ interface TableNodeProps {
   onToggle: (key: string) => void;
   onContextMenu: (e: React.MouseEvent, tableName: string) => void;
   onPreviewData: (tableName: string) => void;
+  isSelected: boolean;
 }
 
 function TableNode({
@@ -142,6 +131,7 @@ function TableNode({
   onToggle,
   onContextMenu,
   onPreviewData,
+  isSelected,
 }: TableNodeProps) {
   const tableKey = `table:${table.name}`;
   const isExpanded = expanded[tableKey] ?? false;
@@ -152,26 +142,17 @@ function TableNode({
 
   // Determine which columns to highlight when filtering
   const lower = filter.toLowerCase();
-  const hasMatchingColumns =
-    filter && table.columns.some((c) => c.name.toLowerCase().includes(lower));
 
   return (
     <div className="tree-node">
       <div
-        className="tree-row table-row"
-        onClick={() => onToggle(tableKey)}
+        className={`tree-row table-row${isSelected ? ' selected' : ''}`}
+        onClick={() => { onToggle(tableKey); onPreviewData(table.name); }}
         onContextMenu={(e) => onContextMenu(e, table.name)}
       >
         <span className="chevron">{isExpanded ? '\u25BE' : '\u25B8'}</span>
         <span className="icon table-icon">T</span>
         <span className="label">{table.name}</span>
-        <button
-          className="preview-btn"
-          title="Preview Data"
-          onClick={(e) => { e.stopPropagation(); onPreviewData(table.name); }}
-        >
-          Preview
-        </button>
         <span className="badge">{table.columns.length} cols</span>
       </div>
 

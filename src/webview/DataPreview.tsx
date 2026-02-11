@@ -4,7 +4,7 @@ import { sendMessage, onMessage, generateRequestId } from './vscodeApi';
 
 interface DataPreviewProps {
   tableName: string;
-  onBack: () => void;
+  onClose: () => void;
 }
 
 type SortState = {
@@ -12,7 +12,7 @@ type SortState = {
   direction: 'asc' | 'desc' | null;
 };
 
-export function DataPreview({ tableName, onBack }: DataPreviewProps) {
+export function DataPreview({ tableName, onClose }: DataPreviewProps) {
   const [data, setData] = useState<DataPage | null>(null);
   const [loading, setLoading] = useState(true);
   const [sort, setSort] = useState<SortState>({ column: null, direction: null });
@@ -90,15 +90,15 @@ export function DataPreview({ tableName, onBack }: DataPreviewProps) {
   return (
     <div className="data-preview">
       <div className="data-toolbar">
-        <button className="back-btn" onClick={onBack}>
-          &larr; Back
-        </button>
         <span className="table-title">{tableName}</span>
         {data && (
-          <span style={{ marginLeft: 'auto', color: 'var(--vscode-descriptionForeground)', fontSize: 12 }}>
+          <span className="row-count">
             {data.totalRows.toLocaleString()} rows
           </span>
         )}
+        <button className="close-btn" onClick={onClose} title="Close preview">
+          ×
+        </button>
       </div>
 
       {loading && !data ? (
@@ -142,9 +142,9 @@ export function DataPreview({ tableName, onBack }: DataPreviewProps) {
                   <tr>
                     <td
                       colSpan={data.columns.length}
-                      style={{ textAlign: 'center', color: 'var(--vscode-descriptionForeground)' }}
+                      style={{ textAlign: 'center', color: 'var(--vscode-descriptionForeground)', padding: '20px' }}
                     >
-                      No data
+                      No data in this table
                     </td>
                   </tr>
                 )}

@@ -228,7 +228,15 @@ export class SchemaProvider implements vscode.CustomReadonlyEditorProvider {
     .header-btn { background: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground); border: none; padding: 3px 10px; border-radius: 2px; cursor: pointer; font-size: 12px; }
     .header-btn:hover { background: var(--vscode-button-secondaryHoverBackground); }
     .reload-btn { background: var(--vscode-inputValidation-warningBackground); color: var(--vscode-inputValidation-warningForeground); border: 1px solid var(--vscode-inputValidation-warningBorder); padding: 3px 10px; border-radius: 2px; cursor: pointer; font-size: 12px; }
-    .content { flex: 1; overflow: auto; }
+    .content { flex: 1; overflow: hidden; }
+
+    /* Split layout */
+    .schema-view { display: flex; height: 100%; }
+    .schema-view .schema-pane { flex: 1; overflow: hidden; }
+    .schema-view.split .schema-pane { flex: none; min-width: 200px; overflow: hidden; }
+    .schema-view .divider { width: 4px; cursor: col-resize; background: var(--vscode-panel-border); flex-shrink: 0; }
+    .schema-view .divider:hover { background: var(--vscode-focusBorder); }
+    .schema-view .preview-pane { flex: 1; min-width: 200px; overflow: hidden; }
 
     /* Schema Tree */
     .schema-tree { display: flex; flex-direction: column; height: 100%; }
@@ -266,9 +274,8 @@ export class SchemaProvider implements vscode.CustomReadonlyEditorProvider {
     .badge { margin-left: auto; color: var(--vscode-descriptionForeground); font-size: 11px; flex-shrink: 0; }
     .index-columns { color: var(--vscode-descriptionForeground); font-size: 11px; margin-left: 4px; }
     .highlighted { background: var(--vscode-editor-findMatchHighlightBackground, rgba(234, 179, 8, 0.3)); }
-    .preview-btn { background: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground); border: none; padding: 1px 6px; border-radius: 2px; cursor: pointer; font-size: 10px; margin-left: auto; opacity: 0; transition: opacity 0.1s; }
-    .table-row:hover .preview-btn { opacity: 1; }
-    .preview-btn:hover { background: var(--vscode-button-secondaryHoverBackground); }
+    .table-row.selected { background: var(--vscode-list-activeSelectionBackground); color: var(--vscode-list-activeSelectionForeground); }
+    .table-row.selected:hover { background: var(--vscode-list-activeSelectionBackground); }
 
     /* Context Menu */
     .context-menu { position: fixed; z-index: 1000; background: var(--vscode-menu-background); border: 1px solid var(--vscode-menu-border); border-radius: 4px; padding: 4px 0; box-shadow: 0 2px 8px rgba(0,0,0,0.3); min-width: 140px; }
@@ -282,7 +289,9 @@ export class SchemaProvider implements vscode.CustomReadonlyEditorProvider {
     .data-preview { display: flex; flex-direction: column; height: 100%; }
     .data-toolbar { display: flex; align-items: center; gap: 8px; padding: 6px 12px; border-bottom: 1px solid var(--vscode-panel-border); flex-shrink: 0; }
     .data-toolbar .table-title { font-weight: 600; }
-    .data-toolbar .back-btn { background: none; border: none; color: var(--vscode-textLink-foreground); cursor: pointer; padding: 2px 4px; font-size: 12px; }
+    .data-toolbar .row-count { margin-left: auto; color: var(--vscode-descriptionForeground); font-size: 12px; }
+    .data-toolbar .close-btn { background: none; border: none; color: var(--vscode-descriptionForeground); cursor: pointer; padding: 2px 6px; font-size: 16px; line-height: 1; margin-left: 8px; border-radius: 2px; }
+    .data-toolbar .close-btn:hover { background: var(--vscode-toolbar-hoverBackground); color: var(--vscode-editor-foreground); }
     .data-table-container { flex: 1; overflow: auto; }
     .data-table { width: 100%; border-collapse: collapse; font-size: 13px; }
     .data-table th { position: sticky; top: 0; background: var(--vscode-editorGroupHeader-tabsBackground); border-bottom: 1px solid var(--vscode-panel-border); padding: 4px 12px; text-align: left; white-space: nowrap; cursor: pointer; user-select: none; }
