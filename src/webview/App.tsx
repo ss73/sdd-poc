@@ -4,8 +4,9 @@ import { onMessage, sendMessage } from './vscodeApi';
 import { SchemaTree } from './SchemaTree';
 import { ErDiagram } from './ErDiagram';
 import { DataPreview } from './DataPreview';
+import { QueryView } from './QueryView';
 
-export type ViewMode = 'schema' | 'er-diagram';
+export type ViewMode = 'schema' | 'er-diagram' | 'query';
 
 interface AppState {
   fileName: string | null;
@@ -35,6 +36,7 @@ export function App() {
     previewTable: null,
   });
   const [splitRatio, setSplitRatio] = useState(DEFAULT_SPLIT_RATIO);
+  const [erDiagramMounted, setErDiagramMounted] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const draggingRef = useRef(false);
 
@@ -95,11 +97,16 @@ export function App() {
   }, []);
 
   const handleShowErDiagram = useCallback(() => {
+    setErDiagramMounted(true);
     setState((prev) => ({ ...prev, viewMode: 'er-diagram' }));
   }, []);
 
   const handleShowSchema = useCallback(() => {
     setState((prev) => ({ ...prev, viewMode: 'schema' }));
+  }, []);
+
+  const handleShowQuery = useCallback(() => {
+    setState((prev) => ({ ...prev, viewMode: 'query' }));
   }, []);
 
   const handlePreviewData = useCallback((tableName: string) => {
@@ -178,14 +185,19 @@ export function App() {
       <div className="header">
         <span className="file-name">{state.fileName}</span>
         <div className="header-actions">
-          {state.viewMode === 'er-diagram' && (
+          {state.viewMode !== 'schema' && (
             <button className="header-btn" onClick={handleShowSchema}>
               Schema Tree
             </button>
           )}
-          {state.viewMode === 'schema' && (
+          {state.viewMode !== 'er-diagram' && (
             <button className="header-btn" onClick={handleShowErDiagram}>
               ER Diagram
+            </button>
+          )}
+          {state.viewMode !== 'query' && (
+            <button className="header-btn" onClick={handleShowQuery}>
+              Query
             </button>
           )}
         </div>
@@ -219,12 +231,17 @@ export function App() {
             )}
           </div>
         )}
-        {state.viewMode === 'er-diagram' && (
-          <ErDiagram
-            tables={state.tables}
-            onPreviewData={handlePreviewData}
-          />
+        {erDiagramMounted && (
+          <div style={{ display: state.viewMode === 'er-diagram' ? 'contents' : 'none' }}>
+            <ErDiagram
+              tables={state.tables}
+              onPreviewData={handlePreviewData}
+            />
+          </div>
         )}
+        <div style={{ display: state.viewMode === 'query' ? 'contents' : 'none' }}>
+          <QueryView />
+        </div>
       </div>
     </div>
   );

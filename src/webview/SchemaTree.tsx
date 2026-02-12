@@ -139,6 +139,8 @@ function TableNode({
   const columnsExpanded = expanded[columnsKey] ?? true;
   const indexesKey = `idx:${table.name}`;
   const indexesExpanded = expanded[indexesKey] ?? false;
+  const fksKey = `fks:${table.name}`;
+  const fksExpanded = expanded[fksKey] ?? false;
 
   // Determine which columns to highlight when filtering
   const lower = filter.toLowerCase();
@@ -150,7 +152,7 @@ function TableNode({
         onClick={() => { onToggle(tableKey); onPreviewData(table.name); }}
         onContextMenu={(e) => onContextMenu(e, table.name)}
       >
-        <span className="chevron">{isExpanded ? '\u25BE' : '\u25B8'}</span>
+        <span className="chevron">{isExpanded ? '\u25BC' : '\u25B6'}</span>
         <span className="icon table-icon">T</span>
         <span className="label">{table.name}</span>
         <span className="badge">{table.columns.length} cols</span>
@@ -165,7 +167,7 @@ function TableNode({
               onClick={() => onToggle(columnsKey)}
             >
               <span className="chevron">
-                {columnsExpanded ? '\u25BE' : '\u25B8'}
+                {columnsExpanded ? '\u25BC' : '\u25B6'}
               </span>
               <span className="label section-label">Columns</span>
             </div>
@@ -194,7 +196,7 @@ function TableNode({
                 onClick={() => onToggle(indexesKey)}
               >
                 <span className="chevron">
-                  {indexesExpanded ? '\u25BE' : '\u25B8'}
+                  {indexesExpanded ? '\u25BC' : '\u25B6'}
                 </span>
                 <span className="label section-label">
                   Indexes ({table.indexes.length})
@@ -213,17 +215,24 @@ function TableNode({
           {/* Foreign Keys section */}
           {table.foreignKeys.length > 0 && (
             <div className="tree-node">
-              <div className="tree-row section-row">
-                <span className="chevron-placeholder" />
+              <div
+                className="tree-row section-row"
+                onClick={() => onToggle(fksKey)}
+              >
+                <span className="chevron">
+                  {fksExpanded ? '\u25BC' : '\u25B6'}
+                </span>
                 <span className="label section-label">
                   Foreign Keys ({table.foreignKeys.length})
                 </span>
               </div>
-              <div className="tree-children">
-                {table.foreignKeys.map((fk, i) => (
-                  <ForeignKeyNode key={i} fk={fk} />
-                ))}
-              </div>
+              {fksExpanded && (
+                <div className="tree-children">
+                  {table.foreignKeys.map((fk, i) => (
+                    <ForeignKeyNode key={i} fk={fk} />
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </div>
