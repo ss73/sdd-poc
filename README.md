@@ -9,6 +9,7 @@ A VS Code extension for visualizing SQLite database schemas, ER diagrams, and pr
 - **Split-View Data Preview** — Click any table to preview its data in a resizable side pane with pagination, sortable columns, and NULL highlighting
 - **Inline Data Editing** — Double-click any cell to edit its value in place. Changes are written directly to the database file via SQLite's native journaling. Constraint violations (NOT NULL, UNIQUE, FK) surface as inline error messages. A dedicated "Set NULL" button distinguishes null from empty string.
 - **Row Insert & Delete** — Select a row with a single click and delete it via an inline confirmation bar. Add new rows with the "Add Row" button — fill in values using inline inputs, with auto-increment PKs handled automatically. After insert, the grid navigates to and selects the new row. Foreign key and constraint errors are displayed inline.
+- **Custom Query Tabs** — Write and execute arbitrary SQL from a dedicated query view. Results display in a paginated, sortable table consistent with the data preview. DML queries report affected row counts; errors are shown inline. Open multiple tabs with independent query text and results. Use Cmd+Enter (Ctrl+Enter on non-Mac) to execute. All tab state is transient — nothing to save or manage.
 - **Zero Configuration** — Just open a `.db`, `.sqlite`, or `.sqlite3` file
 
 ## Installation
@@ -36,6 +37,7 @@ npm run package   # creates .vsix
 5. Click a row to select it, then use "Delete" to remove it (with confirmation) or "Add Row" to insert a new record
 6. Use the search bar to filter tables and columns by name
 7. Switch to the ER diagram view to see table relationships
+8. Switch to the Query view to write and run custom SQL — open multiple tabs for parallel queries
 
 The split pane divider is draggable. Close the preview pane with the X button to return to a full-width schema tree.
 
@@ -67,6 +69,7 @@ src/
     ├── App.tsx           # main UI, view switching, split layout
     ├── SchemaTree.tsx    # tree with search/filter
     ├── DataPreview.tsx   # paginated data grid with inline editing
+    ├── QueryView.tsx     # custom SQL query tabs
     ├── ErDiagram.tsx     # interactive ER diagram
     ├── TableNode.tsx     # ER diagram node component
     ├── index.tsx         # webview entry
