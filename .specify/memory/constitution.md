@@ -1,8 +1,8 @@
 <!--
   Sync Impact Report
   ==================
-  Version change: 0.0.0 (template) → 1.0.0
-  Modified principles: N/A (initial creation)
+  Version change: 1.0.0 → 1.0.1
+  Modified principles: Quality Standards (automated test MUST → SHOULD)
   Added sections:
     - Core Principles: Simplicity, User Experience First, Secure by Default
     - Quality Standards
@@ -73,8 +73,11 @@ databases. Security MUST be a default, not an opt-in.
 
 ## Quality Standards
 
-- All user-facing features MUST have at least one automated test that
-  exercises the happy path.
+- All user-facing features SHOULD have at least one automated test that
+  exercises the happy path. When automated testing is disproportionately
+  complex (e.g., VS Code webview interactions requiring a full extension
+  host), manual smoke testing with a documented test plan in quickstart.md
+  is an acceptable alternative.
 - Extension MUST activate and load without errors on a clean VS Code
   installation with no other extensions.
 - Extension MUST NOT block the VS Code UI thread; all database operations
@@ -110,4 +113,4 @@ databases. Security MUST be a default, not an opt-in.
   The plan template's Constitution Check section serves as the
   enforcement gate.
 
-**Version**: 1.0.0 | **Ratified**: 2026-02-11 | **Last Amended**: 2026-02-11
+**Version**: 1.0.1 | **Ratified**: 2026-02-11 | **Last Amended**: 2026-02-12

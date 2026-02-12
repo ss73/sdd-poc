@@ -212,6 +212,7 @@ export function App() {
                   <DataPreview
                     tableName={state.previewTable}
                     onClose={handleClosePreview}
+                    databaseChanged={state.databaseChanged}
                   />
                 </div>
               </>

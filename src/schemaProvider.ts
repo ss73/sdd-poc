@@ -1,11 +1,12 @@
 import * as vscode from 'vscode';
+import * as fs from 'fs';
 import { SqliteService } from './sqliteService';
 import type {
   WebviewToExtensionMessage,
   TableInfo,
 } from './types';
 
-export class SchemaProvider implements vscode.CustomReadonlyEditorProvider {
+export class SchemaProvider implements vscode.CustomEditorProvider {
   public static readonly viewType = 'sqlDbVisualizer.schemaView';
 
   private sqliteService: SqliteService;
@@ -13,10 +14,19 @@ export class SchemaProvider implements vscode.CustomReadonlyEditorProvider {
   private currentUri: vscode.Uri | undefined;
   private currentWebview: vscode.WebviewPanel | undefined;
   private currentSchema: TableInfo[] | undefined;
+  private readOnly = false;
+  private isWritingBack = false;
+  private lastRequestedTable: string | undefined;
+  private lastRequestedPage = 0;
+  private lastRequestedSortColumn: string | null = null;
+  private lastRequestedSortDirection: 'asc' | 'desc' | null = null;
+
+  // CustomEditorProvider event — not used since we save immediately
+  private readonly _onDidChangeCustomDocument = new vscode.EventEmitter<vscode.CustomDocumentEditEvent<vscode.CustomDocument>>();
+  readonly onDidChangeCustomDocument = this._onDidChangeCustomDocument.event;
 
   constructor(private readonly extensionUri: vscode.Uri) {
-    const wasmDir = vscode.Uri.joinPath(extensionUri, 'dist').fsPath;
-    this.sqliteService = new SqliteService(wasmDir);
+    this.sqliteService = new SqliteService();
   }
 
   openCustomDocument(
@@ -25,6 +35,22 @@ export class SchemaProvider implements vscode.CustomReadonlyEditorProvider {
     _token: vscode.CancellationToken
   ): vscode.CustomDocument {
     return { uri, dispose: () => {} };
+  }
+
+  async saveCustomDocument(): Promise<void> {
+    // No-op: edits are persisted immediately on each cell commit
+  }
+
+  async revertCustomDocument(): Promise<void> {
+    // No-op: no batch editing state to revert
+  }
+
+  async saveCustomDocumentAs(): Promise<void> {
+    // Not supported — database files are edited in-place
+  }
+
+  async backupCustomDocument(): Promise<vscode.CustomDocumentBackup> {
+    return { id: '', delete: () => {} };
   }
 
   async resolveCustomEditor(
@@ -70,8 +96,15 @@ export class SchemaProvider implements vscode.CustomReadonlyEditorProvider {
     webviewPanel: vscode.WebviewPanel
   ): Promise<void> {
     try {
-      const fileData = await vscode.workspace.fs.readFile(uri);
-      await this.sqliteService.openDatabase(fileData);
+      this.sqliteService.openDatabase(uri.fsPath);
+
+      try {
+        fs.accessSync(uri.fsPath, fs.constants.W_OK);
+        this.readOnly = false;
+      } catch {
+        this.readOnly = true;
+      }
+
       const tables = this.sqliteService.getSchema();
       this.currentSchema = tables;
 
@@ -121,6 +154,10 @@ export class SchemaProvider implements vscode.CustomReadonlyEditorProvider {
     );
 
     this.currentWatcher.onDidChange(() => {
+      if (this.isWritingBack) {
+        this.isWritingBack = false;
+        return;
+      }
       webviewPanel.webview.postMessage({
         type: 'database-changed',
         payload: {},
@@ -143,11 +180,16 @@ export class SchemaProvider implements vscode.CustomReadonlyEditorProvider {
       case 'request-data': {
         try {
           const { tableName, page, sortColumn, sortDirection } = message.payload;
+          this.lastRequestedTable = tableName;
+          this.lastRequestedPage = page;
+          this.lastRequestedSortColumn = sortColumn;
+          this.lastRequestedSortDirection = sortDirection;
           const dataPage = this.sqliteService.getRows(
             tableName,
             page,
             sortColumn,
-            sortDirection
+            sortDirection,
+            this.readOnly
           );
           this.currentWebview?.webview.postMessage({
             type: 'data-page',
@@ -166,6 +208,37 @@ export class SchemaProvider implements vscode.CustomReadonlyEditorProvider {
         break;
       }
 
+      case 'update-cell': {
+        try {
+          const { tableName, columnName, newValue, rowIdentifier } = message.payload;
+          this.isWritingBack = true;
+          this.sqliteService.updateCell(tableName, columnName, newValue, rowIdentifier);
+
+          const updatedData = this.sqliteService.getRows(
+            this.lastRequestedTable ?? tableName,
+            this.lastRequestedPage,
+            this.lastRequestedSortColumn,
+            this.lastRequestedSortDirection,
+            this.readOnly
+          );
+
+          this.currentWebview?.webview.postMessage({
+            type: 'update-result',
+            requestId: message.requestId,
+            payload: { success: true, error: null, updatedData },
+          });
+        } catch (err) {
+          this.isWritingBack = false;
+          const errMessage = err instanceof Error ? err.message : 'Failed to update cell';
+          this.currentWebview?.webview.postMessage({
+            type: 'update-result',
+            requestId: message.requestId,
+            payload: { success: false, error: this.parseConstraintError(errMessage), updatedData: null },
+          });
+        }
+        break;
+      }
+
       case 'reload-database': {
         if (this.currentUri && this.currentWebview) {
           await this.loadDatabase(this.currentUri, this.currentWebview);
@@ -178,6 +251,26 @@ export class SchemaProvider implements vscode.CustomReadonlyEditorProvider {
         break;
       }
     }
+  }
+
+  private parseConstraintError(message: string): string {
+    const lower = message.toLowerCase();
+    if (lower.includes('not null') || lower.includes('notnull')) {
+      return 'This column cannot be empty.';
+    }
+    if (lower.includes('unique')) {
+      return 'This value already exists.';
+    }
+    if (lower.includes('foreign key') || lower.includes('foreignkey')) {
+      if (lower.includes('is still referenced') || lower.includes('restrict')) {
+        return 'Other records depend on this value.';
+      }
+      return 'No matching record in referenced table.';
+    }
+    if (lower.includes('busy') || lower.includes('locked')) {
+      return 'Database is locked by another process.';
+    }
+    return message;
   }
 
   private getHtml(webview: vscode.Webview): string {
@@ -300,11 +393,25 @@ export class SchemaProvider implements vscode.CustomReadonlyEditorProvider {
     .data-table td { padding: 3px 12px; border-bottom: 1px solid var(--vscode-panel-border); white-space: nowrap; max-width: 300px; overflow: hidden; text-overflow: ellipsis; }
     .data-table tr:hover td { background: var(--vscode-list-hoverBackground); }
     .null-value { color: var(--vscode-descriptionForeground); font-style: italic; opacity: 0.6; }
+    .blob-value { color: var(--vscode-descriptionForeground); font-style: italic; opacity: 0.6; }
     .pagination { display: flex; align-items: center; justify-content: center; gap: 12px; padding: 8px; border-top: 1px solid var(--vscode-panel-border); flex-shrink: 0; }
     .pagination button { background: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground); border: none; padding: 3px 10px; border-radius: 2px; cursor: pointer; font-size: 12px; }
     .pagination button:hover { background: var(--vscode-button-secondaryHoverBackground); }
     .pagination button:disabled { opacity: 0.4; cursor: default; }
     .pagination .page-info { color: var(--vscode-descriptionForeground); font-size: 12px; }
+
+    /* Cell Editing */
+    .cell-editable { cursor: pointer; }
+    .cell-editable:hover { background: var(--vscode-list-hoverBackground); }
+    .cell-editing { padding: 0 !important; background: var(--vscode-editor-background); outline: 2px solid var(--vscode-focusBorder); outline-offset: -2px; }
+    .cell-edit-container { display: flex; flex-direction: column; }
+    .cell-edit-row { display: flex; align-items: center; }
+    .cell-edit-input { flex: 1; padding: 3px 12px; background: var(--vscode-input-background); color: var(--vscode-input-foreground); border: none; outline: none; font-family: var(--vscode-font-family); font-size: 13px; box-sizing: border-box; min-width: 0; }
+    .set-null-btn { flex-shrink: 0; padding: 3px 6px; background: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground); border: none; border-left: 1px solid var(--vscode-panel-border); cursor: pointer; font-size: 10px; font-weight: 700; font-family: var(--vscode-font-family); letter-spacing: 0.5px; }
+    .set-null-btn:hover { background: var(--vscode-button-secondaryHoverBackground); }
+    .set-null-btn:disabled { opacity: 0.4; cursor: default; }
+    .cell-edit-input:disabled { opacity: 0.6; }
+    .cell-edit-error { padding: 2px 12px; font-size: 11px; color: var(--vscode-inputValidation-errorForeground, var(--vscode-errorForeground)); background: var(--vscode-inputValidation-errorBackground, rgba(255,0,0,0.1)); border-top: 1px solid var(--vscode-inputValidation-errorBorder, var(--vscode-errorForeground)); }
 
     /* ER Diagram */
     .er-diagram-container { width: 100%; height: 100%; }

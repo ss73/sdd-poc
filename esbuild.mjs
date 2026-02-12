@@ -1,28 +1,14 @@
 import * as esbuild from 'esbuild';
-import { copyFileSync, mkdirSync, existsSync } from 'fs';
-import { join, dirname } from 'path';
 
 const isWatch = process.argv.includes('--watch');
 const isProd = !isWatch;
-
-// Copy sql-wasm.wasm to dist/
-function copySqlWasm() {
-  const src = join('node_modules', 'sql.js', 'dist', 'sql-wasm.wasm');
-  const destDir = 'dist';
-  const dest = join(destDir, 'sql-wasm.wasm');
-  if (!existsSync(destDir)) {
-    mkdirSync(destDir, { recursive: true });
-  }
-  copyFileSync(src, dest);
-  console.log('Copied sql-wasm.wasm to dist/');
-}
 
 /** @type {import('esbuild').BuildOptions} */
 const extensionConfig = {
   entryPoints: ['src/extension.ts'],
   bundle: true,
   outfile: 'dist/extension.js',
-  external: ['vscode'],
+  external: ['vscode', 'node-sqlite3-wasm'],
   format: 'cjs',
   platform: 'node',
   target: 'es2020',
@@ -44,8 +30,6 @@ const webviewConfig = {
 };
 
 async function build() {
-  copySqlWasm();
-
   if (isWatch) {
     const extCtx = await esbuild.context(extensionConfig);
     const webCtx = await esbuild.context(webviewConfig);
