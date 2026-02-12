@@ -184,6 +184,48 @@ export class SqliteService {
       .map((c) => c.name);
   }
 
+  deleteRow(
+    tableName: string,
+    rowIdentifier: Record<string, unknown>
+  ): void {
+    if (!this.db) {
+      throw new Error('No database is open');
+    }
+
+    const pkEntries = Object.entries(rowIdentifier);
+    if (pkEntries.length === 0) {
+      throw new Error('No row identifier provided');
+    }
+    const whereClauses = pkEntries.map(([col]) => `${this.escapeId(col)} = ?`);
+    const sql = `DELETE FROM ${this.escapeId(tableName)} WHERE ${whereClauses.join(' AND ')}`;
+    const params = pkEntries.map(([, val]) => val) as (string | number | null | Uint8Array | bigint)[];
+    this.db.run(sql, params);
+  }
+
+  insertRow(
+    tableName: string,
+    columnValues: Record<string, unknown>
+  ): number {
+    if (!this.db) {
+      throw new Error('No database is open');
+    }
+
+    const entries = Object.entries(columnValues);
+    if (entries.length === 0) {
+      const sql = `INSERT INTO ${this.escapeId(tableName)} DEFAULT VALUES`;
+      this.db.run(sql);
+    } else {
+      const columns = entries.map(([col]) => this.escapeId(col));
+      const placeholders = entries.map(() => '?');
+      const sql = `INSERT INTO ${this.escapeId(tableName)} (${columns.join(', ')}) VALUES (${placeholders.join(', ')})`;
+      const params = entries.map(([, val]) => val) as (string | number | null | Uint8Array | bigint)[];
+      this.db.run(sql, params);
+    }
+
+    const result = this.db.get('SELECT last_insert_rowid() as id') as { id: number } | undefined;
+    return result?.id ?? 0;
+  }
+
   updateCell(
     tableName: string,
     columnName: string,
