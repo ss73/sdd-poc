@@ -1,26 +1,16 @@
-import initSqlJs, { type Database } from 'sql.js';
-import * as path from 'path';
+import { Database } from 'node-sqlite3-wasm';
 import type { TableInfo, Column, Index, ForeignKey, DataPage } from './types';
 
 export class SqliteService {
   private db: Database | null = null;
-  private sqlPromise: Promise<initSqlJs.SqlJsStatic> | null = null;
 
-  constructor(private wasmDir: string) {}
-
-  private async getSql(): Promise<initSqlJs.SqlJsStatic> {
-    if (!this.sqlPromise) {
-      this.sqlPromise = initSqlJs({
-        locateFile: (file: string) => path.join(this.wasmDir, file),
-      });
-    }
-    return this.sqlPromise;
+  private escapeId(name: string): string {
+    return `"${name.replace(/"/g, '""')}"`;
   }
 
-  async openDatabase(fileBuffer: Uint8Array): Promise<void> {
+  openDatabase(filePath: string): void {
     this.close();
-    const SQL = await this.getSql();
-    this.db = new SQL.Database(fileBuffer);
+    this.db = new Database(filePath, { fileMustExist: true });
   }
 
   getSchema(): TableInfo[] {
@@ -29,21 +19,16 @@ export class SqliteService {
     }
 
     const tables: TableInfo[] = [];
-    const tableNames = this.db.exec(
+    const tableRows = this.db.all(
       "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name"
-    );
+    ) as { name: string }[];
 
-    if (tableNames.length === 0 || tableNames[0].values.length === 0) {
-      return [];
-    }
-
-    for (const row of tableNames[0].values) {
-      const tableName = row[0] as string;
+    for (const row of tableRows) {
       tables.push({
-        name: tableName,
-        columns: this.getColumns(tableName),
-        indexes: this.getIndexes(tableName),
-        foreignKeys: this.getForeignKeys(tableName),
+        name: row.name,
+        columns: this.getColumns(row.name),
+        indexes: this.getIndexes(row.name),
+        foreignKeys: this.getForeignKeys(row.name),
       });
     }
 
@@ -52,56 +37,50 @@ export class SqliteService {
 
   private getColumns(tableName: string): Column[] {
     if (!this.db) { return []; }
-    const result = this.db.exec(`PRAGMA table_info("${tableName}")`);
-    if (result.length === 0) { return []; }
+    const rows = this.db.all(`PRAGMA table_info("${tableName}")`) as {
+      name: string; type: string; notnull: number; dflt_value: string | null; pk: number;
+    }[];
 
-    return result[0].values.map((row) => ({
-      name: row[1] as string,
-      type: (row[2] as string) || '',
-      notNull: (row[3] as number) === 1,
-      defaultValue: row[4] as string | null,
-      primaryKey: (row[5] as number) > 0,
+    return rows.map((row) => ({
+      name: row.name,
+      type: row.type || '',
+      notNull: row.notnull === 1,
+      defaultValue: row.dflt_value,
+      primaryKey: row.pk > 0,
     }));
   }
 
   private getIndexes(tableName: string): Index[] {
     if (!this.db) { return []; }
-    const result = this.db.exec(`PRAGMA index_list("${tableName}")`);
-    if (result.length === 0) { return []; }
+    const rows = this.db.all(`PRAGMA index_list("${tableName}")`) as {
+      name: string; unique: number;
+    }[];
 
-    return result[0].values
-      .filter((row) => {
-        // Filter out auto-indexes created for UNIQUE constraints
-        const name = row[1] as string;
-        return !name.startsWith('sqlite_autoindex_');
-      })
-      .map((row) => {
-        const indexName = row[1] as string;
-        const unique = (row[2] as number) === 1;
-        return {
-          name: indexName,
-          unique,
-          columns: this.getIndexColumns(indexName),
-        };
-      });
+    return rows
+      .filter((row) => !row.name.startsWith('sqlite_autoindex_'))
+      .map((row) => ({
+        name: row.name,
+        unique: row.unique === 1,
+        columns: this.getIndexColumns(row.name),
+      }));
   }
 
   private getIndexColumns(indexName: string): string[] {
     if (!this.db) { return []; }
-    const result = this.db.exec(`PRAGMA index_info("${indexName}")`);
-    if (result.length === 0) { return []; }
-    return result[0].values.map((row) => row[2] as string);
+    const rows = this.db.all(`PRAGMA index_info("${indexName}")`) as { name: string }[];
+    return rows.map((row) => row.name);
   }
 
   private getForeignKeys(tableName: string): ForeignKey[] {
     if (!this.db) { return []; }
-    const result = this.db.exec(`PRAGMA foreign_key_list("${tableName}")`);
-    if (result.length === 0) { return []; }
+    const rows = this.db.all(`PRAGMA foreign_key_list("${tableName}")`) as {
+      from: string; table: string; to: string;
+    }[];
 
-    return result[0].values.map((row) => ({
-      fromColumn: row[3] as string,
-      toTable: row[2] as string,
-      toColumn: row[4] as string,
+    return rows.map((row) => ({
+      fromColumn: row.from,
+      toTable: row.table,
+      toColumn: row.to,
     }));
   }
 
@@ -109,7 +88,8 @@ export class SqliteService {
     tableName: string,
     page: number,
     sortColumn: string | null,
-    sortDirection: 'asc' | 'desc' | null
+    sortDirection: 'asc' | 'desc' | null,
+    readOnly = false
   ): DataPage {
     if (!this.db) {
       throw new Error('No database is open');
@@ -118,29 +98,68 @@ export class SqliteService {
     const pageSize = 50;
     const offset = page * pageSize;
 
-    // Get columns for header
-    const columns = this.getColumns(tableName).map((c) => c.name);
+    const allColumns = this.getColumns(tableName);
+    const columns = allColumns.map((c) => c.name);
+    let pkColumns = this.getPrimaryKeyColumns(tableName);
+    let usesRowid = pkColumns.length === 1 && pkColumns[0] === 'rowid';
+    let canEdit = true;
 
-    // Build query with optional sorting
-    let query = `SELECT * FROM "${tableName}"`;
+    // WITHOUT ROWID tables without explicit PK can't be edited
+    if (usesRowid) {
+      try {
+        this.db.get(`SELECT rowid FROM ${this.escapeId(tableName)} LIMIT 0`);
+      } catch {
+        usesRowid = false;
+        pkColumns = [];
+        canEdit = false;
+      }
+    }
+
+    const selectClause = usesRowid ? 'rowid, *' : '*';
+    let query = `SELECT ${selectClause} FROM ${this.escapeId(tableName)}`;
     if (sortColumn && sortDirection) {
-      query += ` ORDER BY "${sortColumn}" ${sortDirection === 'asc' ? 'ASC' : 'DESC'}`;
+      query += ` ORDER BY ${this.escapeId(sortColumn)} ${sortDirection === 'asc' ? 'ASC' : 'DESC'}`;
     }
     query += ` LIMIT ${pageSize} OFFSET ${offset}`;
 
-    const result = this.db.exec(query);
-    const rows = result.length > 0 ? result[0].values : [];
+    const rowObjects = this.db.all(query) as Record<string, unknown>[];
+    const rows = rowObjects.map((row) => columns.map((col) => row[col]));
+
+    const rowIdentifiers = rowObjects.map((row) => {
+      const id: Record<string, unknown> = {};
+      for (const pk of pkColumns) {
+        id[pk] = row[pk];
+      }
+      return id;
+    });
 
     const totalRows = this.getRowCount(tableName);
+    const editableColumns = canEdit
+      ? allColumns
+          .filter((c) => !c.primaryKey && c.type.toUpperCase() !== 'BLOB')
+          .map((c) => c.name)
+      : [];
+    const notNullColumns = allColumns
+      .filter((c) => c.notNull)
+      .map((c) => c.name);
+    const blobColumns = allColumns
+      .filter((c) => c.type.toUpperCase() === 'BLOB')
+      .map((c) => c.name);
 
     return {
       tableName,
       columns,
-      rows: rows as unknown[][],
+      rows,
       page,
       totalRows,
       sortColumn,
       sortDirection,
+      primaryKeyColumns: pkColumns,
+      rowIdentifiers,
+      readOnly,
+      editableColumns,
+      notNullColumns,
+      blobColumns,
     };
   }
 
@@ -148,9 +167,38 @@ export class SqliteService {
     if (!this.db) {
       throw new Error('No database is open');
     }
-    const result = this.db.exec(`SELECT COUNT(*) as count FROM "${tableName}"`);
-    if (result.length === 0) { return 0; }
-    return result[0].values[0][0] as number;
+    const row = this.db.get(`SELECT COUNT(*) as count FROM "${tableName}"`) as { count: number } | undefined;
+    return row?.count ?? 0;
+  }
+
+  getPrimaryKeyColumns(tableName: string): string[] {
+    const columns = this.getColumns(tableName);
+    const pkColumns = columns.filter((c) => c.primaryKey).map((c) => c.name);
+    return pkColumns.length > 0 ? pkColumns : ['rowid'];
+  }
+
+  getEditableColumns(tableName: string): string[] {
+    const columns = this.getColumns(tableName);
+    return columns
+      .filter((c) => !c.primaryKey && c.type.toUpperCase() !== 'BLOB')
+      .map((c) => c.name);
+  }
+
+  updateCell(
+    tableName: string,
+    columnName: string,
+    newValue: unknown,
+    rowIdentifier: Record<string, unknown>
+  ): void {
+    if (!this.db) {
+      throw new Error('No database is open');
+    }
+
+    const pkEntries = Object.entries(rowIdentifier);
+    const whereClauses = pkEntries.map(([col]) => `${this.escapeId(col)} = ?`);
+    const sql = `UPDATE ${this.escapeId(tableName)} SET ${this.escapeId(columnName)} = ? WHERE ${whereClauses.join(' AND ')}`;
+    const params = [newValue, ...pkEntries.map(([, val]) => val)] as (string | number | null | Uint8Array | bigint)[];
+    this.db.run(sql, params);
   }
 
   close(): void {

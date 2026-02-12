@@ -41,6 +41,12 @@ export interface DataPage {
   totalRows: number;
   sortColumn: string | null;
   sortDirection: 'asc' | 'desc' | null;
+  primaryKeyColumns: string[];
+  rowIdentifiers: Record<string, unknown>[];
+  readOnly: boolean;
+  editableColumns: string[];
+  notNullColumns: string[];
+  blobColumns: string[];
 }
 
 // ── Extension → Webview Messages ─────────────────────────────────────
@@ -82,6 +88,16 @@ export interface DatabaseChangedMessage {
   payload: Record<string, never>;
 }
 
+export interface UpdateResultMessage {
+  type: 'update-result';
+  requestId: string;
+  payload: {
+    success: boolean;
+    error: string | null;
+    updatedData: DataPage | null;
+  };
+}
+
 // ── Webview → Extension Messages ─────────────────────────────────────
 
 export interface RequestDataMessage {
@@ -107,6 +123,17 @@ export interface ShowErrorMessage {
   };
 }
 
+export interface UpdateCellMessage {
+  type: 'update-cell';
+  requestId: string;
+  payload: {
+    tableName: string;
+    columnName: string;
+    newValue: unknown;
+    rowIdentifier: Record<string, unknown>;
+  };
+}
+
 // ── Union Types ──────────────────────────────────────────────────────
 
 export type ExtensionToWebviewMessage =
@@ -114,11 +141,13 @@ export type ExtensionToWebviewMessage =
   | DataPageMessage
   | ErrorMessage
   | DatabaseUnavailableMessage
-  | DatabaseChangedMessage;
+  | DatabaseChangedMessage
+  | UpdateResultMessage;
 
 export type WebviewToExtensionMessage =
   | RequestDataMessage
   | ReloadDatabaseMessage
-  | ShowErrorMessage;
+  | ShowErrorMessage
+  | UpdateCellMessage;
 
 export type Message = ExtensionToWebviewMessage | WebviewToExtensionMessage;

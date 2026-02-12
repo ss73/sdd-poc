@@ -19,7 +19,7 @@
 
 **Purpose**: Swap SQLite library dependency and update build config
 
-- [ ] T001 Replace sql.js with node-sqlite3-wasm in package.json and remove sql-wasm.wasm copy step from esbuild.mjs (see research.md R1, R7 for API differences and esbuild.mjs for current wasm copy logic)
+- [X] T001 Replace sql.js with node-sqlite3-wasm in package.json and remove sql-wasm.wasm copy step from esbuild.mjs (see research.md R1, R7 for API differences and esbuild.mjs for current wasm copy logic)
 
 ---
 
@@ -29,9 +29,9 @@
 
 **CRITICAL**: No editing work (Phase 3+) can begin until this checkpoint passes.
 
-- [ ] T002 Migrate src/sqliteService.ts from sql.js to node-sqlite3-wasm: change openDatabase(buffer: Uint8Array) to openDatabase(filePath: string) using `new Database(filePath, { fileMustExist: true })`, adapt all query methods from `db.exec(sql)[0]` to `db.all(sql)` return format, and ensure `db.close()` is called on dispose (see research.md R7 for full migration mapping)
-- [ ] T003 Update src/schemaProvider.ts to pass uri.fsPath to sqliteService.openDatabase() instead of reading the file into a buffer with vscode.workspace.fs.readFile() (see research.md R7)
-- [ ] T004 Build with `npm run build` and manually smoke test all existing read-only features: schema tree loads with tables/columns/indexes, search/filter works, data preview with pagination and sorting works, ER diagram renders, file watcher detects external changes, error handling for invalid files works (see plan.md Phase A checklist)
+- [X] T002 Migrate src/sqliteService.ts from sql.js to node-sqlite3-wasm: change openDatabase(buffer: Uint8Array) to openDatabase(filePath: string) using `new Database(filePath, { fileMustExist: true })`, adapt all query methods from `db.exec(sql)[0]` to `db.all(sql)` return format, and ensure `db.close()` is called on dispose (see research.md R7 for full migration mapping)
+- [X] T003 Update src/schemaProvider.ts to pass uri.fsPath to sqliteService.openDatabase() instead of reading the file into a buffer with vscode.workspace.fs.readFile() (see research.md R7)
+- [X] T004 Build with `npm run build` and manually smoke test all existing read-only features: schema tree loads with tables/columns/indexes, search/filter works, data preview with pagination and sorting works, ER diagram renders, file watcher detects external changes, error handling for invalid files works (see plan.md Phase A checklist)
 
 **Checkpoint**: All existing features work identically with node-sqlite3-wasm. Migration verified.
 
@@ -45,12 +45,12 @@
 
 ### Implementation for User Story 1
 
-- [ ] T005 [P] [US1] Add UpdateCellMessage and UpdateResultMessage types to src/types.ts, extend DataPage with primaryKeyColumns, rowIdentifiers, readOnly, and editableColumns fields per contracts/messages.md, and add both new message types to the ExtensionToWebviewMessage and WebviewToExtensionMessage union types
-- [ ] T006 [P] [US1] Add updateCell(tableName, columnName, newValue, rowIdentifier) method to src/sqliteService.ts using parameterized `db.run("UPDATE ... SET ... = ? WHERE ... = ?", params)` with double-quote identifier escaping for table/column names, and add getRowIdentifiers(tableName) to detect PK columns via `PRAGMA table_info()` with rowid fallback for tables without explicit PK (see research.md R3, R4)
-- [ ] T007 [US1] Change src/schemaProvider.ts from CustomReadonlyEditorProvider to CustomEditorProvider with minimal saveCustomDocument/revertCustomDocument stubs, and extend the data-page response handler to include primaryKeyColumns, rowIdentifiers, readOnly (check file access), and editableColumns (exclude PK and BLOB columns) using the new sqliteService methods (see research.md R2, contracts/messages.md)
-- [ ] T008 [US1] Add update-cell message handler to src/schemaProvider.ts: call sqliteService.updateCell(), set isWritingBack flag before write to suppress file watcher false alarm, re-fetch current page after success, and send update-result response with refreshed DataPage or error (see research.md R5, R6, contracts/messages.md message flow)
-- [ ] T009 [US1] Add CellEdit state (per data-model.md), double-click handler on editable td cells, inline text input pre-filled with current value (empty for NULL), visual edit mode indicator (highlighted border/background using VS Code theme variables), and prevent edit on non-editable columns, when readOnly is true, or when databaseChanged is true (pending reload) — accept databaseChanged as a prop from App.tsx in src/webview/DataPreview.tsx (FR-001, FR-002, FR-008, FR-009, FR-011)
-- [ ] T010 [US1] Wire Enter (commit), Escape (cancel), and blur (commit) handlers in src/webview/DataPreview.tsx: send update-cell message with rowIdentifier on commit, listen for update-result response, update data state on success, restore original value on cancel (FR-003, FR-004, FR-010, acceptance scenarios 1–5)
+- [X] T005 [P] [US1] Add UpdateCellMessage and UpdateResultMessage types to src/types.ts, extend DataPage with primaryKeyColumns, rowIdentifiers, readOnly, and editableColumns fields per contracts/messages.md, and add both new message types to the ExtensionToWebviewMessage and WebviewToExtensionMessage union types
+- [X] T006 [P] [US1] Add updateCell(tableName, columnName, newValue, rowIdentifier) method to src/sqliteService.ts using parameterized `db.run("UPDATE ... SET ... = ? WHERE ... = ?", params)` with double-quote identifier escaping for table/column names, and add getRowIdentifiers(tableName) to detect PK columns via `PRAGMA table_info()` with rowid fallback for tables without explicit PK (see research.md R3, R4)
+- [X] T007 [US1] Change src/schemaProvider.ts from CustomReadonlyEditorProvider to CustomEditorProvider with minimal saveCustomDocument/revertCustomDocument stubs, and extend the data-page response handler to include primaryKeyColumns, rowIdentifiers, readOnly (check file access), and editableColumns (exclude PK and BLOB columns) using the new sqliteService methods (see research.md R2, contracts/messages.md)
+- [X] T008 [US1] Add update-cell message handler to src/schemaProvider.ts: call sqliteService.updateCell(), set isWritingBack flag before write to suppress file watcher false alarm, re-fetch current page after success, and send update-result response with refreshed DataPage or error (see research.md R5, R6, contracts/messages.md message flow)
+- [X] T009 [US1] Add CellEdit state (per data-model.md), double-click handler on editable td cells, inline text input pre-filled with current value (empty for NULL), visual edit mode indicator (highlighted border/background using VS Code theme variables), and prevent edit on non-editable columns, when readOnly is true, or when databaseChanged is true (pending reload) — accept databaseChanged as a prop from App.tsx in src/webview/DataPreview.tsx (FR-001, FR-002, FR-008, FR-009, FR-011)
+- [X] T010 [US1] Wire Enter (commit), Escape (cancel), and blur (commit) handlers in src/webview/DataPreview.tsx: send update-cell message with rowIdentifier on commit, listen for update-result response, update data state on success, restore original value on cancel (FR-003, FR-004, FR-010, acceptance scenarios 1–5)
 
 **Checkpoint**: User can edit any non-PK, non-BLOB cell and see the persisted result. Basic save/cancel works end-to-end.
 
@@ -64,8 +64,8 @@
 
 ### Implementation for User Story 2
 
-- [ ] T011 [US2] Parse SQLite constraint error messages into human-readable descriptions in the update-cell handler in src/schemaProvider.ts: map SQLITE_CONSTRAINT_NOTNULL to "This column cannot be empty", SQLITE_CONSTRAINT_UNIQUE to "This value already exists", SQLITE_CONSTRAINT_FOREIGNKEY to "No matching record in referenced table" / "Other records depend on this value", and SQLITE_BUSY to "Database is locked by another process" (FR-005, acceptance scenarios 1–4)
-- [ ] T012 [US2] Display inline error message below the edited cell in src/webview/DataPreview.tsx, keep cell in edit mode with error visible after failed save (FR-006), and dismiss error when user begins typing a new value (acceptance scenario 6)
+- [X] T011 [US2] Parse SQLite constraint error messages into human-readable descriptions in the update-cell handler in src/schemaProvider.ts: map SQLITE_CONSTRAINT_NOTNULL to "This column cannot be empty", SQLITE_CONSTRAINT_UNIQUE to "This value already exists", SQLITE_CONSTRAINT_FOREIGNKEY to "No matching record in referenced table" / "Other records depend on this value", and SQLITE_BUSY to "Database is locked by another process" (FR-005, acceptance scenarios 1–4)
+- [X] T012 [US2] Display inline error message below the edited cell in src/webview/DataPreview.tsx, keep cell in edit mode with error visible after failed save (FR-006), and dismiss error when user begins typing a new value (acceptance scenario 6)
 
 **Checkpoint**: All constraint violations produce clear, actionable inline error messages. Cell stays editable after failure.
 
@@ -79,7 +79,7 @@
 
 ### Implementation for User Story 3
 
-- [ ] T013 [US3] Add a "Set NULL" button/action to the edit controls in src/webview/DataPreview.tsx that sends null as newValue in the update-cell message, hide the action for NOT NULL columns (using column metadata from DataPage), and display the existing NULL indicator styling after save (FR-007, acceptance scenarios 1–2)
+- [X] T013 [US3] Add a "Set NULL" button/action to the edit controls in src/webview/DataPreview.tsx that sends null as newValue in the update-cell message, hide the action for NOT NULL columns (using column metadata from DataPage), and display the existing NULL indicator styling after save (FR-007, acceptance scenarios 1–2)
 
 **Checkpoint**: NULL and empty string are clearly distinguishable. Set NULL action respects NOT NULL constraints.
 
@@ -89,8 +89,8 @@
 
 **Purpose**: Edge cases and final validation
 
-- [ ] T014 Handle remaining edge cases in src/webview/DataPreview.tsx and src/schemaProvider.ts: BLOB cells display a non-editable indicator, long text values use a scrollable input without layout breakage, and WITHOUT ROWID tables without PK disable editing with a clear message (spec edge cases)
-- [ ] T015 Final build with `npm run build` and end-to-end manual validation per quickstart.md test flow steps 1–9
+- [X] T014 Handle remaining edge cases in src/webview/DataPreview.tsx and src/schemaProvider.ts: BLOB cells display a non-editable indicator, long text values use a scrollable input without layout breakage, and WITHOUT ROWID tables without PK disable editing with a clear message (spec edge cases)
+- [X] T015 Final build with `npm run build` and end-to-end manual validation per quickstart.md test flow steps 1–9
 
 ---
 
