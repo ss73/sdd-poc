@@ -119,6 +119,18 @@ export interface InsertResultMessage {
   };
 }
 
+export interface QueryResultMessage {
+  type: 'query-result';
+  requestId: string;
+  payload: {
+    type: 'rows' | 'affected' | 'error';
+    columns: string[];
+    rows: unknown[][];
+    affectedRows: number;
+    error: string | null;
+  };
+}
+
 // ── Webview → Extension Messages ─────────────────────────────────────
 
 export interface RequestDataMessage {
@@ -173,6 +185,14 @@ export interface InsertRowMessage {
   };
 }
 
+export interface ExecuteQueryMessage {
+  type: 'execute-query';
+  requestId: string;
+  payload: {
+    sql: string;
+  };
+}
+
 // ── Union Types ──────────────────────────────────────────────────────
 
 export type ExtensionToWebviewMessage =
@@ -183,7 +203,8 @@ export type ExtensionToWebviewMessage =
   | DatabaseChangedMessage
   | UpdateResultMessage
   | DeleteResultMessage
-  | InsertResultMessage;
+  | InsertResultMessage
+  | QueryResultMessage;
 
 export type WebviewToExtensionMessage =
   | RequestDataMessage
@@ -191,6 +212,7 @@ export type WebviewToExtensionMessage =
   | ShowErrorMessage
   | UpdateCellMessage
   | DeleteRowMessage
-  | InsertRowMessage;
+  | InsertRowMessage
+  | ExecuteQueryMessage;
 
 export type Message = ExtensionToWebviewMessage | WebviewToExtensionMessage;

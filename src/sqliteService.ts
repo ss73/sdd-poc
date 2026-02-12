@@ -243,6 +243,37 @@ export class SqliteService {
     this.db.run(sql, params);
   }
 
+  executeQuery(sql: string): {
+    type: 'rows' | 'affected' | 'error';
+    columns: string[];
+    rows: unknown[][];
+    affectedRows: number;
+    error: string | null;
+  } {
+    if (!this.db) {
+      throw new Error('No database is open');
+    }
+
+    try {
+      const trimmed = sql.trim();
+      const firstKeyword = trimmed.split(/\s/)[0].toUpperCase();
+
+      if (firstKeyword === 'SELECT' || firstKeyword === 'PRAGMA' || firstKeyword === 'EXPLAIN' || firstKeyword === 'WITH') {
+        const rowObjects = this.db.all(trimmed) as Record<string, unknown>[];
+        const columns = rowObjects.length > 0 ? Object.keys(rowObjects[0]) : [];
+        const rows = rowObjects.map((row) => columns.map((col) => row[col]));
+        return { type: 'rows', columns, rows, affectedRows: 0, error: null };
+      } else {
+        const runResult = this.db.run(trimmed);
+        const affectedRows = runResult.changes;
+        return { type: 'affected', columns: [], rows: [], affectedRows, error: null };
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Query execution failed';
+      return { type: 'error', columns: [], rows: [], affectedRows: 0, error: message };
+    }
+  }
+
   close(): void {
     if (this.db) {
       this.db.close();

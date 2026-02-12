@@ -342,6 +342,26 @@ export class SchemaProvider implements vscode.CustomEditorProvider {
         vscode.window.showErrorMessage(message.payload.message);
         break;
       }
+
+      case 'execute-query': {
+        const { sql } = message.payload;
+        const trimmed = sql.trim();
+        const firstKeyword = trimmed.split(/\s/)[0].toUpperCase();
+        const isWrite = !['SELECT', 'PRAGMA', 'EXPLAIN', 'WITH'].includes(firstKeyword);
+
+        if (isWrite) {
+          this.isWritingBack = true;
+        }
+
+        const result = this.sqliteService.executeQuery(sql);
+
+        this.currentWebview?.webview.postMessage({
+          type: 'query-result',
+          requestId: message.requestId,
+          payload: result,
+        });
+        break;
+      }
     }
   }
 
@@ -520,6 +540,28 @@ export class SchemaProvider implements vscode.CustomEditorProvider {
     .new-row .cell-edit-input { width: 100%; }
     .new-row-actions td { padding: 4px 12px; border-bottom: 1px solid var(--vscode-panel-border); }
     .new-row-action-bar { display: flex; align-items: center; gap: 8px; }
+
+    /* Query View */
+    .query-view { display: flex; flex-direction: column; height: 100%; }
+    .query-tab-bar { display: flex; align-items: center; border-bottom: 1px solid var(--vscode-panel-border); background: var(--vscode-editorGroupHeader-tabsBackground); flex-shrink: 0; overflow-x: auto; }
+    .query-tab { display: flex; align-items: center; gap: 4px; padding: 4px 12px; cursor: pointer; border-right: 1px solid var(--vscode-panel-border); font-size: 12px; white-space: nowrap; user-select: none; }
+    .query-tab:hover { background: var(--vscode-list-hoverBackground); }
+    .query-tab.active { background: var(--vscode-editor-background); border-bottom: 2px solid var(--vscode-focusBorder); }
+    .query-tab-label { }
+    .query-tab-close { font-size: 14px; line-height: 1; padding: 0 2px; border-radius: 2px; color: var(--vscode-descriptionForeground); }
+    .query-tab-close:hover { background: var(--vscode-toolbar-hoverBackground); color: var(--vscode-editor-foreground); }
+    .query-tab-add { background: none; border: none; border-right: 1px solid var(--vscode-panel-border); color: var(--vscode-descriptionForeground); padding: 4px 10px; cursor: pointer; font-size: 16px; line-height: 1; }
+    .query-tab-add:hover { background: var(--vscode-list-hoverBackground); color: var(--vscode-editor-foreground); }
+    .query-editor { display: flex; flex-direction: column; border-bottom: 1px solid var(--vscode-panel-border); flex-shrink: 0; }
+    .query-textarea { width: 100%; min-height: 100px; max-height: 200px; resize: vertical; padding: 8px 12px; background: var(--vscode-input-background); color: var(--vscode-input-foreground); border: none; outline: none; font-family: var(--vscode-editor-font-family, monospace); font-size: var(--vscode-editor-font-size, 13px); line-height: 1.4; box-sizing: border-box; }
+    .query-textarea:focus { }
+    .query-textarea:disabled { opacity: 0.6; }
+    .query-actions { display: flex; align-items: center; gap: 8px; padding: 4px 12px; }
+    .query-shortcut-hint { color: var(--vscode-descriptionForeground); font-size: 11px; }
+    .query-results { flex: 1; overflow: hidden; display: flex; flex-direction: column; }
+    .query-empty-state { display: flex; align-items: center; justify-content: center; height: 100%; color: var(--vscode-descriptionForeground); font-style: italic; }
+    .query-error { padding: 12px; color: var(--vscode-errorForeground); background: var(--vscode-inputValidation-errorBackground, rgba(255,0,0,0.1)); border-bottom: 1px solid var(--vscode-inputValidation-errorBorder, var(--vscode-errorForeground)); white-space: pre-wrap; font-family: var(--vscode-editor-font-family, monospace); font-size: 13px; }
+    .query-affected { padding: 12px; color: var(--vscode-descriptionForeground); font-style: italic; }
 
     /* ER Diagram */
     .er-diagram-container { width: 100%; height: 100%; }
