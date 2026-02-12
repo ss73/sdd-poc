@@ -8,6 +8,7 @@ A VS Code extension for visualizing SQLite database schemas, ER diagrams, and pr
 - **ER Diagram** — Interactive entity-relationship diagram with foreign key edges, automatic layout (ELK.js), pan, and zoom
 - **Split-View Data Preview** — Click any table to preview its data in a resizable side pane with pagination, sortable columns, and NULL highlighting
 - **Inline Data Editing** — Double-click any cell to edit its value in place. Changes are written directly to the database file via SQLite's native journaling. Constraint violations (NOT NULL, UNIQUE, FK) surface as inline error messages. A dedicated "Set NULL" button distinguishes null from empty string.
+- **Row Insert & Delete** — Select a row with a single click and delete it via an inline confirmation bar. Add new rows with the "Add Row" button — fill in values using inline inputs, with auto-increment PKs handled automatically. After insert, the grid navigates to and selects the new row. Foreign key and constraint errors are displayed inline.
 - **Zero Configuration** — Just open a `.db`, `.sqlite`, or `.sqlite3` file
 
 ## Installation
@@ -32,8 +33,9 @@ npm run package   # creates .vsix
 2. The schema tree loads automatically — expand tables to see columns and indexes
 3. Click a table name to preview its data in a split pane on the right
 4. Double-click any editable cell to modify its value — press Enter to save, Escape to cancel
-5. Use the search bar to filter tables and columns by name
-6. Switch to the ER diagram view to see table relationships
+5. Click a row to select it, then use "Delete" to remove it (with confirmation) or "Add Row" to insert a new record
+6. Use the search bar to filter tables and columns by name
+7. Switch to the ER diagram view to see table relationships
 
 The split pane divider is draggable. Close the preview pane with the X button to return to a full-width schema tree.
 
