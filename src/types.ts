@@ -98,6 +98,27 @@ export interface UpdateResultMessage {
   };
 }
 
+export interface DeleteResultMessage {
+  type: 'delete-result';
+  requestId: string;
+  payload: {
+    success: boolean;
+    error: string | null;
+    updatedData: DataPage | null;
+  };
+}
+
+export interface InsertResultMessage {
+  type: 'insert-result';
+  requestId: string;
+  payload: {
+    success: boolean;
+    error: string | null;
+    updatedData: DataPage | null;
+    insertedRowIndex: number | null;
+  };
+}
+
 // ── Webview → Extension Messages ─────────────────────────────────────
 
 export interface RequestDataMessage {
@@ -134,6 +155,24 @@ export interface UpdateCellMessage {
   };
 }
 
+export interface DeleteRowMessage {
+  type: 'delete-row';
+  requestId: string;
+  payload: {
+    tableName: string;
+    rowIdentifier: Record<string, unknown>;
+  };
+}
+
+export interface InsertRowMessage {
+  type: 'insert-row';
+  requestId: string;
+  payload: {
+    tableName: string;
+    columnValues: Record<string, unknown>;
+  };
+}
+
 // ── Union Types ──────────────────────────────────────────────────────
 
 export type ExtensionToWebviewMessage =
@@ -142,12 +181,16 @@ export type ExtensionToWebviewMessage =
   | ErrorMessage
   | DatabaseUnavailableMessage
   | DatabaseChangedMessage
-  | UpdateResultMessage;
+  | UpdateResultMessage
+  | DeleteResultMessage
+  | InsertResultMessage;
 
 export type WebviewToExtensionMessage =
   | RequestDataMessage
   | ReloadDatabaseMessage
   | ShowErrorMessage
-  | UpdateCellMessage;
+  | UpdateCellMessage
+  | DeleteRowMessage
+  | InsertRowMessage;
 
 export type Message = ExtensionToWebviewMessage | WebviewToExtensionMessage;

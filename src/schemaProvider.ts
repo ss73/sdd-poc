@@ -239,6 +239,98 @@ export class SchemaProvider implements vscode.CustomEditorProvider {
         break;
       }
 
+      case 'delete-row': {
+        try {
+          const { tableName, rowIdentifier } = message.payload;
+          this.isWritingBack = true;
+          this.sqliteService.deleteRow(tableName, rowIdentifier);
+
+          const updatedData = this.sqliteService.getRows(
+            this.lastRequestedTable ?? tableName,
+            this.lastRequestedPage,
+            this.lastRequestedSortColumn,
+            this.lastRequestedSortDirection,
+            this.readOnly
+          );
+
+          this.currentWebview?.webview.postMessage({
+            type: 'delete-result',
+            requestId: message.requestId,
+            payload: { success: true, error: null, updatedData },
+          });
+        } catch (err) {
+          this.isWritingBack = false;
+          const errMessage = err instanceof Error ? err.message : 'Failed to delete row';
+          this.currentWebview?.webview.postMessage({
+            type: 'delete-result',
+            requestId: message.requestId,
+            payload: { success: false, error: this.parseConstraintError(errMessage, 'delete'), updatedData: null },
+          });
+        }
+        break;
+      }
+
+      case 'insert-row': {
+        try {
+          const { tableName, columnValues } = message.payload;
+          this.isWritingBack = true;
+          const lastRowid = this.sqliteService.insertRow(tableName, columnValues);
+
+          // Determine which page the new row ended up on
+          const resolvedTable = this.lastRequestedTable ?? tableName;
+          const totalRows = this.sqliteService.getRowCount(resolvedTable);
+          const pageSize = 50;
+          const lastPage = Math.max(0, Math.ceil(totalRows / pageSize) - 1);
+
+          // Build the new row's identifier
+          const pkColumns = this.sqliteService.getPrimaryKeyColumns(resolvedTable);
+          const newRowId: Record<string, unknown> = {};
+          for (const pk of pkColumns) {
+            newRowId[pk] = pk in columnValues ? columnValues[pk] : lastRowid;
+          }
+
+          // Fetch the last page (where new rows typically appear for unsorted/ascending)
+          const targetPage = (this.lastRequestedSortColumn && this.lastRequestedSortDirection)
+            ? lastPage  // With sort, the row could be anywhere — try last page
+            : lastPage; // Without sort, new rows are at the end
+          this.lastRequestedPage = targetPage;
+
+          const updatedData = this.sqliteService.getRows(
+            resolvedTable,
+            targetPage,
+            this.lastRequestedSortColumn,
+            this.lastRequestedSortDirection,
+            this.readOnly
+          );
+
+          // Find the inserted row's index on this page
+          let insertedRowIndex: number | null = null;
+          for (let i = 0; i < updatedData.rowIdentifiers.length; i++) {
+            const rid = updatedData.rowIdentifiers[i];
+            const matches = Object.entries(newRowId).every(([k, v]) => rid[k] === v);
+            if (matches) {
+              insertedRowIndex = i;
+              break;
+            }
+          }
+
+          this.currentWebview?.webview.postMessage({
+            type: 'insert-result',
+            requestId: message.requestId,
+            payload: { success: true, error: null, updatedData, insertedRowIndex },
+          });
+        } catch (err) {
+          this.isWritingBack = false;
+          const errMessage = err instanceof Error ? err.message : 'Failed to insert row';
+          this.currentWebview?.webview.postMessage({
+            type: 'insert-result',
+            requestId: message.requestId,
+            payload: { success: false, error: this.parseConstraintError(errMessage, 'insert'), updatedData: null, insertedRowIndex: null },
+          });
+        }
+        break;
+      }
+
       case 'reload-database': {
         if (this.currentUri && this.currentWebview) {
           await this.loadDatabase(this.currentUri, this.currentWebview);
@@ -253,7 +345,7 @@ export class SchemaProvider implements vscode.CustomEditorProvider {
     }
   }
 
-  private parseConstraintError(message: string): string {
+  private parseConstraintError(message: string, context: 'update' | 'delete' | 'insert' = 'update'): string {
     const lower = message.toLowerCase();
     if (lower.includes('not null') || lower.includes('notnull')) {
       return 'This column cannot be empty.';
@@ -262,8 +354,8 @@ export class SchemaProvider implements vscode.CustomEditorProvider {
       return 'This value already exists.';
     }
     if (lower.includes('foreign key') || lower.includes('foreignkey')) {
-      if (lower.includes('is still referenced') || lower.includes('restrict')) {
-        return 'Other records depend on this value.';
+      if (context === 'delete') {
+        return 'Cannot delete: other records depend on this row.';
       }
       return 'No matching record in referenced table.';
     }
@@ -389,7 +481,7 @@ export class SchemaProvider implements vscode.CustomEditorProvider {
     .data-table { width: 100%; border-collapse: collapse; font-size: 13px; }
     .data-table th { position: sticky; top: 0; background: var(--vscode-editorGroupHeader-tabsBackground); border-bottom: 1px solid var(--vscode-panel-border); padding: 4px 12px; text-align: left; white-space: nowrap; cursor: pointer; user-select: none; }
     .data-table th:hover { background: var(--vscode-list-hoverBackground); }
-    .data-table th .sort-arrow { margin-left: 4px; font-size: 10px; }
+    .data-table th .sort-arrow { margin-left: 4px; font-size: 14px; }
     .data-table td { padding: 3px 12px; border-bottom: 1px solid var(--vscode-panel-border); white-space: nowrap; max-width: 300px; overflow: hidden; text-overflow: ellipsis; }
     .data-table tr:hover td { background: var(--vscode-list-hoverBackground); }
     .null-value { color: var(--vscode-descriptionForeground); font-style: italic; opacity: 0.6; }
@@ -412,6 +504,22 @@ export class SchemaProvider implements vscode.CustomEditorProvider {
     .set-null-btn:disabled { opacity: 0.4; cursor: default; }
     .cell-edit-input:disabled { opacity: 0.6; }
     .cell-edit-error { padding: 2px 12px; font-size: 11px; color: var(--vscode-inputValidation-errorForeground, var(--vscode-errorForeground)); background: var(--vscode-inputValidation-errorBackground, rgba(255,0,0,0.1)); border-top: 1px solid var(--vscode-inputValidation-errorBorder, var(--vscode-errorForeground)); }
+
+    /* Row Selection */
+    .data-table tr.row-selected td { background: var(--vscode-list-activeSelectionBackground); color: var(--vscode-list-activeSelectionForeground); }
+    .data-table tr.row-selected:hover td { background: var(--vscode-list-activeSelectionBackground); }
+    .data-table tbody tr { cursor: pointer; }
+
+    /* Delete Confirmation Bar */
+    .delete-confirmation-bar { display: flex; align-items: center; gap: 8px; padding: 6px 12px; background: var(--vscode-inputValidation-warningBackground); border-bottom: 1px solid var(--vscode-inputValidation-warningBorder); flex-shrink: 0; font-size: 13px; }
+    .delete-confirmation-bar.has-error { background: var(--vscode-inputValidation-errorBackground, rgba(255,0,0,0.1)); border-bottom-color: var(--vscode-inputValidation-errorBorder, var(--vscode-errorForeground)); }
+    .delete-error { color: var(--vscode-errorForeground); font-size: 12px; flex: 1; }
+
+    /* New Row */
+    .new-row td { background: var(--vscode-editor-background); border-bottom: none; }
+    .new-row .cell-edit-input { width: 100%; }
+    .new-row-actions td { padding: 4px 12px; border-bottom: 1px solid var(--vscode-panel-border); }
+    .new-row-action-bar { display: flex; align-items: center; gap: 8px; }
 
     /* ER Diagram */
     .er-diagram-container { width: 100%; height: 100%; }
