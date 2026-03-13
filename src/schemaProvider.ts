@@ -1,8 +1,10 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import { SqliteService } from './sqliteService';
+import { formatCsv } from './csvFormatter';
 import type {
   WebviewToExtensionMessage,
+  ExportCsvMessage,
   TableInfo,
 } from './types';
 
@@ -331,6 +333,11 @@ export class SchemaProvider implements vscode.CustomEditorProvider {
         break;
       }
 
+      case 'export-csv': {
+        await this.handleExportCsv(message as ExportCsvMessage);
+        break;
+      }
+
       case 'reload-database': {
         if (this.currentUri && this.currentWebview) {
           await this.loadDatabase(this.currentUri, this.currentWebview);
@@ -363,6 +370,105 @@ export class SchemaProvider implements vscode.CustomEditorProvider {
         break;
       }
     }
+  }
+
+  private async handleExportCsv(message: ExportCsvMessage): Promise<void> {
+    const { requestId, payload } = message;
+
+    // Determine suggested filename
+    const suggestedFilename = payload.source === 'query-tab'
+      ? payload.suggestedFilename
+      : payload.suggestedFilename;
+
+    // Show save dialog
+    const uri = await vscode.window.showSaveDialog({
+      defaultUri: vscode.Uri.file(suggestedFilename),
+      filters: { 'CSV files': ['csv'], 'All files': ['*'] },
+    });
+
+    if (!uri) {
+      this.currentWebview?.webview.postMessage({
+        type: 'export-csv-result',
+        requestId,
+        payload: { status: 'cancelled' },
+      });
+      return;
+    }
+
+    await vscode.window.withProgress(
+      {
+        location: vscode.ProgressLocation.Notification,
+        title: 'Exporting CSV\u2026',
+        cancellable: true,
+      },
+      async (progress, token) => {
+        try {
+          let columns: string[];
+          let rows: unknown[][];
+
+          if (payload.source === 'query-tab') {
+            columns = payload.columns;
+            rows = payload.rows;
+          } else {
+            // table-preview: fetch all rows from the database
+            const result = this.sqliteService.getAllTableRows(payload.tableName);
+            columns = result.columns;
+            rows = result.rows;
+          }
+
+          if (token.isCancellationRequested) {
+            this.currentWebview?.webview.postMessage({
+              type: 'export-csv-result',
+              requestId,
+              payload: { status: 'cancelled' },
+            });
+            return;
+          }
+
+          progress.report({ message: `Formatting ${rows.length} rows\u2026` });
+          const csvContent = formatCsv(columns, rows);
+
+          if (token.isCancellationRequested) {
+            this.currentWebview?.webview.postMessage({
+              type: 'export-csv-result',
+              requestId,
+              payload: { status: 'cancelled' },
+            });
+            return;
+          }
+
+          progress.report({ message: 'Writing file\u2026' });
+          await vscode.workspace.fs.writeFile(uri, Buffer.from(csvContent, 'utf-8'));
+
+          const rowCount = rows.length;
+          vscode.window.showInformationMessage(
+            `Exported ${rowCount} row${rowCount !== 1 ? 's' : ''} to ${uri.fsPath}`
+          );
+
+          this.currentWebview?.webview.postMessage({
+            type: 'export-csv-result',
+            requestId,
+            payload: { status: 'success', rowCount, filePath: uri.fsPath },
+          });
+        } catch (err) {
+          // Clean up partial file
+          try {
+            await vscode.workspace.fs.delete(uri, { useTrash: false });
+          } catch {
+            // File may not exist yet — ignore
+          }
+
+          const errMessage = err instanceof Error ? err.message : 'Export failed';
+          vscode.window.showErrorMessage(`CSV export failed: ${errMessage}`);
+
+          this.currentWebview?.webview.postMessage({
+            type: 'export-csv-result',
+            requestId,
+            payload: { status: 'error', error: errMessage },
+          });
+        }
+      }
+    );
   }
 
   private parseConstraintError(message: string, context: 'update' | 'delete' | 'insert' = 'update'): string {

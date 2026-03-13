@@ -131,6 +131,24 @@ export interface QueryResultMessage {
   };
 }
 
+export interface ExportCsvResultMessage {
+  type: 'export-csv-result';
+  requestId: string;
+  payload:
+    | {
+        status: 'success';
+        rowCount: number;
+        filePath: string;
+      }
+    | {
+        status: 'error';
+        error: string;
+      }
+    | {
+        status: 'cancelled';
+      };
+}
+
 // ── Webview → Extension Messages ─────────────────────────────────────
 
 export interface RequestDataMessage {
@@ -193,6 +211,31 @@ export interface ExecuteQueryMessage {
   };
 }
 
+export interface ExportCsvQueryTabMessage {
+  type: 'export-csv';
+  requestId: string;
+  payload: {
+    source: 'query-tab';
+    columns: string[];
+    rows: unknown[][];
+    suggestedFilename: string;
+  };
+}
+
+export interface ExportCsvTablePreviewMessage {
+  type: 'export-csv';
+  requestId: string;
+  payload: {
+    source: 'table-preview';
+    tableName: string;
+    suggestedFilename: string;
+  };
+}
+
+export type ExportCsvMessage =
+  | ExportCsvQueryTabMessage
+  | ExportCsvTablePreviewMessage;
+
 // ── Union Types ──────────────────────────────────────────────────────
 
 export type ExtensionToWebviewMessage =
@@ -204,7 +247,8 @@ export type ExtensionToWebviewMessage =
   | UpdateResultMessage
   | DeleteResultMessage
   | InsertResultMessage
-  | QueryResultMessage;
+  | QueryResultMessage
+  | ExportCsvResultMessage;
 
 export type WebviewToExtensionMessage =
   | RequestDataMessage
@@ -213,6 +257,7 @@ export type WebviewToExtensionMessage =
   | UpdateCellMessage
   | DeleteRowMessage
   | InsertRowMessage
-  | ExecuteQueryMessage;
+  | ExecuteQueryMessage
+  | ExportCsvMessage;
 
 export type Message = ExtensionToWebviewMessage | WebviewToExtensionMessage;

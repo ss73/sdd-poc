@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import type { ExtensionToWebviewMessage } from '../types';
+import type { ExtensionToWebviewMessage, ExportCsvResultMessage } from '../types';
 import { sendMessage, onMessage, generateRequestId } from './vscodeApi';
 
 interface QueryResult {
@@ -137,6 +137,34 @@ export function QueryView() {
   useEffect(() => {
     textareaRef.current?.focus();
   }, [activeTabId]);
+
+  const [isExporting, setIsExporting] = useState(false);
+
+  // Listen for export-csv-result messages
+  useEffect(() => {
+    const unsubscribe = onMessage((message: ExtensionToWebviewMessage) => {
+      if (message.type === 'export-csv-result') {
+        setIsExporting(false);
+      }
+    });
+    return unsubscribe;
+  }, []);
+
+  const handleExportCsv = useCallback(() => {
+    if (!activeTab?.result || activeTab.result.type !== 'rows' || isExporting) return;
+    setIsExporting(true);
+    const requestId = generateRequestId();
+    sendMessage({
+      type: 'export-csv',
+      requestId,
+      payload: {
+        source: 'query-tab' as const,
+        columns: activeTab.result.columns,
+        rows: activeTab.result.rows,
+        suggestedFilename: `${activeTab.label}.csv`,
+      },
+    });
+  }, [activeTab, isExporting]);
 
   const result = activeTab?.result ?? null;
   const isExecuting = activeTab?.isExecuting ?? false;
@@ -293,6 +321,16 @@ export function QueryView() {
 
         {!isExecuting && result?.type === 'rows' && (
           <>
+            <div className="data-toolbar" style={{ borderTop: 'none' }}>
+              <span className="row-count">{totalRows} rows</span>
+              <button
+                className="header-btn"
+                onClick={handleExportCsv}
+                disabled={isExporting || totalRows === 0 && result.columns.length === 0}
+              >
+                {isExporting ? 'Exporting...' : 'Export to CSV'}
+              </button>
+            </div>
             <div className="data-table-container">
               <table className="data-table">
                 <thead>

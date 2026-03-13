@@ -163,6 +163,34 @@ export class SqliteService {
     };
   }
 
+  getAllTableRows(tableName: string): { columns: string[]; rows: unknown[][] } {
+    if (!this.db) {
+      throw new Error('No database is open');
+    }
+
+    const allColumns = this.getColumns(tableName);
+    const columns = allColumns.map((c) => c.name);
+    const blobColumnNames = new Set(
+      allColumns.filter((c) => c.type.toUpperCase() === 'BLOB').map((c) => c.name)
+    );
+
+    const rowObjects = this.db.all(
+      `SELECT * FROM ${this.escapeId(tableName)}`
+    ) as Record<string, unknown>[];
+
+    const rows = rowObjects.map((row) =>
+      columns.map((col) => {
+        const val = row[col];
+        if (blobColumnNames.has(col) && val !== null) {
+          return new Uint8Array(0); // Signal as BLOB for csvFormatter
+        }
+        return val;
+      })
+    );
+
+    return { columns, rows };
+  }
+
   getRowCount(tableName: string): number {
     if (!this.db) {
       throw new Error('No database is open');

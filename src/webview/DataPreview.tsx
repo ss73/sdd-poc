@@ -443,6 +443,33 @@ export function DataPreview({ tableName, onClose, databaseChanged }: DataPreview
     [cancelNewRow, commitNewRow]
   );
 
+  // Export CSV state
+  const [isExporting, setIsExporting] = useState(false);
+
+  useEffect(() => {
+    const unsubscribe = onMessage((message: ExtensionToWebviewMessage) => {
+      if (message.type === 'export-csv-result') {
+        setIsExporting(false);
+      }
+    });
+    return unsubscribe;
+  }, []);
+
+  const handleExportCsv = useCallback(() => {
+    if (!data || isExporting) return;
+    setIsExporting(true);
+    const requestId = generateRequestId();
+    sendMessage({
+      type: 'export-csv',
+      requestId,
+      payload: {
+        source: 'table-preview' as const,
+        tableName: data.tableName,
+        suggestedFilename: `${data.tableName}.csv`,
+      },
+    });
+  }, [data, isExporting]);
+
   const totalPages = data ? Math.max(1, Math.ceil(data.totalRows / 50)) : 1;
 
   const isEditingCell = (ri: number, ci: number) =>
@@ -471,6 +498,15 @@ export function DataPreview({ tableName, onClose, databaseChanged }: DataPreview
               Delete
             </button>
           </>
+        )}
+        {data && (
+          <button
+            className="header-btn"
+            onClick={handleExportCsv}
+            disabled={isExporting}
+          >
+            {isExporting ? 'Exporting...' : 'Export to CSV'}
+          </button>
         )}
         {data && (
           <span className="row-count">
